@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: easylink-backend
+    env: node
+    plan: free
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DB_PATH
+        value: /opt/render/project/src/backend/data/easylink.db
+    disk:
+      name: easylink-db
+      mountPath: /opt/render/project/src/backend/data
+      sizeGB: 1
+

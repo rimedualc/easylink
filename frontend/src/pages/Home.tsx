@@ -1,0 +1,286 @@
+import { useState } from 'react';
+import { Plus } from 'lucide-react';
+import { Topbar } from '../components/Topbar/Topbar';
+import { SearchFilter } from '../components/SearchFilter/SearchFilter';
+import { LinkGrid } from '../components/LinkGrid/LinkGrid';
+import { Modal } from '../components/Modal/Modal';
+import { ConfirmModal } from '../components/ConfirmModal/ConfirmModal';
+import { ToastContainer } from '../components/Toast/Toast';
+import { FloatingInfo } from '../components/FloatingInfo/FloatingInfo';
+import { FloatingScrollToTop } from '../components/FloatingScrollToTop/FloatingScrollToTop';
+import { LinkEditor } from './LinkEditor';
+import { useLinks, useCategories } from '../hooks/useApi';
+import { useToasts } from '../hooks/useToasts';
+import { linksApi, categoriesApi, exportApi } from '../services/api';
+import { copyToClipboard } from '../utils/clipboard';
+import type { Link, LinkFilters } from '../types';
+
+export function Home() {
+  const [filters, setFilters] = useState<LinkFilters>({});
+  const [editingLink, setEditingLink] = useState<Link | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<Link | null>(null);
+  const { toasts, addToast, removeToast } = useToasts();
+  const { links, loading, refetch } = useLinks(filters);
+  const { categories, refetch: refetchCategories } = useCategories();
+
+  const handleCopy = async (link: Link) => {
+    const success = await copyToClipboard(link.url);
+    if (success) {
+      addToast('Link copiado para a área de transferência!');
+    } else {
+      addToast('Erro ao copiar link', 'error');
+    }
+  };
+
+  const handleOpen = (link: Link) => {
+    // Link já é aberto no LinkCard
+    addToast(`Abrindo ${link.name}...`, 'info');
+  };
+
+  const handleEdit = (link: Link) => {
+    setEditingLink(link);
+  };
+
+  const handleDelete = (link: Link) => {
+    setDeleteConfirm(link);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirm) return;
+
+    try {
+      await linksApi.delete(deleteConfirm.id);
+      addToast('Link excluído com sucesso!');
+      setDeleteConfirm(null);
+      setTimeout(() => {
+        refetch();
+      }, 100);
+    } catch (error: any) {
+      console.error('Erro ao excluir link:', error);
+      addToast(error.message || 'Erro ao excluir link', 'error');
+      setDeleteConfirm(null);
+      setTimeout(() => {
+        refetch();
+      }, 100);
+    }
+  };
+
+  const handleToggleFavorite = async (link: Link) => {
+    try {
+      await linksApi.toggleFavorite(link.id, !link.favorite);
+      addToast(
+        link.favorite ? 'Removido dos favoritos' : 'Adicionado aos favoritos'
+      );
+      refetch();
+    } catch (error: any) {
+      addToast(error.message || 'Erro ao atualizar favorito', 'error');
+    }
+  };
+
+  const handleCreateCategory = async (name: string) => {
+    try {
+      const newCategory = await categoriesApi.create(name);
+      setTimeout(async () => {
+        await refetchCategories();
+      }, 100);
+      addToast('Categoria criada com sucesso!');
+      return newCategory;
+    } catch (error: any) {
+      console.error('Erro ao criar categoria:', error);
+      setTimeout(async () => {
+        await refetchCategories();
+      }, 100);
+      
+      if (error.message?.includes('409') || error.message?.includes('já existe')) {
+        addToast('Esta categoria já existe! Ela foi adicionada à lista.', 'info');
+        try {
+          const allCategories = await categoriesApi.getAll();
+          const existing = allCategories.find(c => c.name.toLowerCase() === name.toLowerCase());
+          if (existing) {
+            return existing;
+          }
+        } catch (e) {
+          // Ignorar erro ao buscar
+        }
+      } else {
+        addToast(error.message || 'Erro ao criar categoria', 'error');
+      }
+      throw error;
+    }
+  };
+
+  const handleUpdateCategory = async (id: number, name: string) => {
+    try {
+      await categoriesApi.update(id, name);
+      addToast('Categoria atualizada com sucesso!');
+      refetchCategories();
+    } catch (error: any) {
+      addToast(error.message || 'Erro ao atualizar categoria', 'error');
+    }
+  };
+
+  const handleDeleteCategory = async (id: number, reassignTo?: number) => {
+    try {
+      await categoriesApi.delete(id, reassignTo);
+      addToast('Categoria excluída com sucesso!');
+      setTimeout(() => {
+        refetchCategories();
+        refetch();
+      }, 100);
+    } catch (error: any) {
+      console.error('Erro ao excluir categoria:', error);
+      addToast(error.message || 'Erro ao excluir categoria', 'error');
+      setTimeout(() => {
+        refetchCategories();
+        refetch();
+      }, 100);
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const data = await exportApi.export();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `easylink-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      addToast('Dados exportados com sucesso!');
+    } catch (error: any) {
+      addToast(error.message || 'Erro ao exportar dados', 'error');
+    }
+  };
+
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        const result = await exportApi.import(data);
+        addToast(
+          `Importação concluída: ${result.imported} importados, ${result.skipped} ignorados`
+        );
+        refetch();
+        refetchCategories();
+      } catch (error: any) {
+        addToast(error.message || 'Erro ao importar dados', 'error');
+      }
+    };
+    input.click();
+  };
+
+  const handleClear = async () => {
+    try {
+      await exportApi.clear();
+      addToast('Banco de dados limpo com sucesso!');
+      refetch();
+      refetchCategories();
+    } catch (error: any) {
+      addToast(error.message || 'Erro ao limpar banco de dados', 'error');
+    }
+  };
+
+  const handleSaveLink = async (data: Partial<Link>) => {
+    try {
+      if (editingLink) {
+        await linksApi.update(editingLink.id, data);
+        addToast('Link atualizado com sucesso!');
+      } else {
+        await linksApi.create(data as Omit<Link, 'id' | 'createdAt' | 'updatedAt'>);
+        addToast('Link criado com sucesso!');
+      }
+      setEditingLink(null);
+      setIsCreating(false);
+      setTimeout(() => {
+        refetch();
+      }, 100);
+    } catch (error: any) {
+      console.error('Erro ao salvar link:', error);
+      addToast(error.message || 'Erro ao salvar link', 'error');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+      <Topbar
+        onNewLink={() => setIsCreating(true)}
+        onExport={handleExport}
+        onImport={handleImport}
+        onClear={handleClear}
+        categories={categories}
+        onCreateCategory={handleCreateCategory}
+        onUpdateCategory={handleUpdateCategory}
+        onDeleteCategory={handleDeleteCategory}
+      />
+
+      <main className="container mx-auto px-4 py-8 flex-1">
+        <SearchFilter
+          filters={filters}
+          onFiltersChange={setFilters}
+          categories={categories}
+        />
+
+        <div className="mt-6">
+          <LinkGrid
+            links={links}
+            loading={loading}
+            onOpen={handleOpen}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onToggleFavorite={handleToggleFavorite}
+          />
+        </div>
+      </main>
+
+      <FloatingInfo />
+      <FloatingScrollToTop />
+
+      <Modal
+        isOpen={isCreating || !!editingLink}
+        onClose={() => {
+          setIsCreating(false);
+          setEditingLink(null);
+        }}
+        title={editingLink ? 'Editar Link' : 'Novo Link'}
+        size="md"
+      >
+        <LinkEditor
+          link={editingLink || undefined}
+          categories={categories}
+          onSave={handleSaveLink}
+          onCancel={() => {
+            setIsCreating(false);
+            setEditingLink(null);
+          }}
+          onCreateCategory={handleCreateCategory}
+          onCategoriesChange={refetchCategories}
+        />
+      </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir Link"
+        message={`Tem certeza que deseja excluir o link "${deleteConfirm?.name}"? Esta ação não pode ser desfeita.`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        type="danger"
+      />
+
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </div>
+  );
+}
+
