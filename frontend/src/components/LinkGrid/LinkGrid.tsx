@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { LinkCard } from '../LinkCard/LinkCard';
 import type { Link } from '../../types';
 

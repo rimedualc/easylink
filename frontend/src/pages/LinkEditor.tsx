@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -40,8 +40,6 @@ export function LinkEditor({ link, categories, onSave, onCancel, onCreateCategor
       favorite: link?.favorite || false,
     },
   });
-
-  const categoryId = watch('categoryId');
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim() || !onCreateCategory) return;

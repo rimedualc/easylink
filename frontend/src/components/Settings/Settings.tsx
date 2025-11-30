@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Paintbrush } from 'lucide-react';
 import { Modal } from '../Modal/Modal';
-import { hexToHsl, applyPrimaryColor } from '../../utils/colorUtils';
+import { applyPrimaryColor } from '../../utils/colorUtils';
 
 export function Settings() {
   const [isOpen, setIsOpen] = useState(false);

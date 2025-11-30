@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
 import { Topbar } from '../components/Topbar/Topbar';
 import { SearchFilter } from '../components/SearchFilter/SearchFilter';
 import { LinkGrid } from '../components/LinkGrid/LinkGrid';
@@ -23,15 +22,6 @@ export function Home() {
   const { toasts, addToast, removeToast } = useToasts();
   const { links, loading, refetch } = useLinks(filters);
   const { categories, refetch: refetchCategories } = useCategories();
-
-  const handleCopy = async (link: Link) => {
-    const success = await copyToClipboard(link.url);
-    if (success) {
-      addToast('Link copiado para a área de transferência!');
-    } else {
-      addToast('Erro ao copiar link', 'error');
-    }
-  };
 
   const handleOpen = (link: Link) => {
     // Link já é aberto no LinkCard
@@ -78,14 +68,13 @@ export function Home() {
     }
   };
 
-  const handleCreateCategory = async (name: string) => {
+  const handleCreateCategory = async (name: string): Promise<void> => {
     try {
-      const newCategory = await categoriesApi.create(name);
+      await categoriesApi.create(name);
       setTimeout(async () => {
         await refetchCategories();
       }, 100);
       addToast('Categoria criada com sucesso!');
-      return newCategory;
     } catch (error: any) {
       console.error('Erro ao criar categoria:', error);
       setTimeout(async () => {
