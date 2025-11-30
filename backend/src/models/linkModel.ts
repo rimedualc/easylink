@@ -151,7 +151,7 @@ export async function updateLink(id: number, data: Partial<Omit<Link, 'id' | 'cr
     params.push(data.url);
   }
   if (data.categoryId !== undefined) {
-    updates.push('"categoryId" = ?');
+    updates.push('"categoryid" = ?');
     params.push(data.categoryId);
   }
   if (data.favorite !== undefined) {
@@ -159,7 +159,7 @@ export async function updateLink(id: number, data: Partial<Omit<Link, 'id' | 'cr
     params.push(data.favorite);
   }
 
-  updates.push('"updatedAt" = CURRENT_TIMESTAMP');
+  updates.push('"updatedat" = CURRENT_TIMESTAMP');
   params.push(id);
 
   await db.run(
