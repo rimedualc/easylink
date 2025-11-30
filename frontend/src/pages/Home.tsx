@@ -92,10 +92,12 @@ export function Home() {
         } catch (e) {
           // Ignorar erro ao buscar
         }
+        // Se não encontrou a categoria, lança erro
+        throw new Error('Categoria não encontrada após criação');
       } else {
         addToast(error.message || 'Erro ao criar categoria', 'error');
+        throw error;
       }
-      throw error;
     }
   };
 
