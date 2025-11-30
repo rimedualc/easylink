@@ -24,7 +24,10 @@ npm install --include=dev
 npm start
 ```
 
-**Explicação**: O `npm install` automaticamente executa o script `postinstall` que faz o build do TypeScript.
+**Explicação**: 
+- O `npm install --include=dev` instala todas as dependências incluindo devDependencies (TypeScript e @types/node)
+- Após instalar, automaticamente executa o script `postinstall` que compila o TypeScript
+- O `npm start` executa o servidor Node.js compilado
 
 ### 3. Variáveis de Ambiente
 
