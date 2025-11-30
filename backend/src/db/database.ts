@@ -68,7 +68,12 @@ export async function initializeDatabase(): Promise<void> {
   const path = require('path');
 
   // Executar migrations
-  const migrationsDir = path.join(__dirname, 'migrations');
+  // Em produção (compilado), __dirname aponta para dist/db/, então voltamos para src/db/migrations
+  // Em desenvolvimento, __dirname já aponta para src/db/
+  const migrationsDir = process.env.NODE_ENV === 'production' 
+    ? path.resolve(__dirname, '../../src/db/migrations')
+    : path.join(__dirname, 'migrations');
+  
   const migrationFiles = fs.readdirSync(migrationsDir).sort();
 
   for (const file of migrationFiles) {
