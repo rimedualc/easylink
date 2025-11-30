@@ -36,7 +36,7 @@ export async function getAllLinks(filters: LinkFilters = {}): Promise<Link[]> {
       l.*,
       c.name as "categoryName"
     FROM links l
-    LEFT JOIN categories c ON l."categoryId" = c.id
+    LEFT JOIN categories c ON l."categoryid" = c.id
     WHERE 1=1
   `;
   const params: any[] = [];
@@ -48,7 +48,7 @@ export async function getAllLinks(filters: LinkFilters = {}): Promise<Link[]> {
   }
 
   if (filters.categoryId !== undefined) {
-    query += ` AND l."categoryId" = ?`;
+    query += ` AND l."categoryid" = ?`;
     params.push(filters.categoryId);
   }
 
@@ -62,11 +62,11 @@ export async function getAllLinks(filters: LinkFilters = {}): Promise<Link[]> {
   const sortOrder = filters.order || 'desc';
   
   if (sortField === 'favorite') {
-    query += ` ORDER BY l.favorite DESC, l."createdAt" DESC`;
+    query += ` ORDER BY l.favorite DESC, l."createdat" DESC`;
   } else if (sortField === 'name') {
     query += ` ORDER BY l.name ${sortOrder.toUpperCase()}`;
   } else {
-    query += ` ORDER BY l."createdAt" ${sortOrder.toUpperCase()}`;
+    query += ` ORDER BY l."createdat" ${sortOrder.toUpperCase()}`;
   }
 
   // Paginação
@@ -89,7 +89,7 @@ export async function getLinkById(id: number): Promise<Link | null> {
   const row = await db.get<Link>(
     `SELECT l.*, c.name as "categoryName" 
      FROM links l 
-     LEFT JOIN categories c ON l."categoryId" = c.id 
+     LEFT JOIN categories c ON l."categoryid" = c.id 
      WHERE l.id = ?`,
     [id]
   );
@@ -107,7 +107,7 @@ export async function createLink(data: Omit<Link, 'id' | 'createdAt' | 'updatedA
   
   try {
     const result = await db.run(
-      `INSERT INTO links (name, url, "categoryId", favorite)
+      `INSERT INTO links (name, url, "categoryid", favorite)
        VALUES (?, ?, ?, ?)`,
       [
         data.name,
@@ -194,7 +194,7 @@ export async function getAllCategories(): Promise<Category[]> {
   const rows = await db.all<Category & { linkCount: number }>(
     `SELECT c.*, COUNT(l.id) as "linkCount"
      FROM categories c
-     LEFT JOIN links l ON c.id = l."categoryId"
+     LEFT JOIN links l ON c.id = l."categoryid"
      GROUP BY c.id
      ORDER BY c.name`
   );
@@ -221,7 +221,7 @@ export async function createCategory(name: string): Promise<Category> {
   if (existing) {
     // Se já existe, retornar a categoria existente
     const linkCount = await db.get<{ count: number }>(
-      'SELECT COUNT(*) as count FROM links WHERE "categoryId" = ?',
+      'SELECT COUNT(*) as count FROM links WHERE "categoryid" = ?',
       [existing.id]
     );
     return { ...existing, linkCount: linkCount?.count || 0 };
@@ -247,7 +247,7 @@ export async function createCategory(name: string): Promise<Category> {
       const existingAfter = await db.get<Category>('SELECT * FROM categories WHERE name = ?', [name]);
       if (existingAfter) {
         const linkCount = await db.get<{ count: number }>(
-          'SELECT COUNT(*) as count FROM links WHERE "categoryId" = ?',
+          'SELECT COUNT(*) as count FROM links WHERE "categoryid" = ?',
           [existingAfter.id]
         );
         return { ...existingAfter, linkCount: linkCount?.count || 0 };
@@ -273,7 +273,7 @@ export async function updateCategory(id: number, name: string): Promise<Category
     }
     
     const linkCount = await db.get<{ count: number }>(
-      'SELECT COUNT(*) as count FROM links WHERE "categoryId" = ?',
+      'SELECT COUNT(*) as count FROM links WHERE "categoryid" = ?',
       [id]
     );
     
@@ -290,9 +290,9 @@ export async function deleteCategory(id: number, reassignTo?: number): Promise<v
   const db = getDatabase();
   
   if (reassignTo) {
-    await db.run('UPDATE links SET "categoryId" = ? WHERE "categoryId" = ?', [reassignTo, id]);
+    await db.run('UPDATE links SET "categoryid" = ? WHERE "categoryid" = ?', [reassignTo, id]);
   } else {
-    await db.run('UPDATE links SET "categoryId" = NULL WHERE "categoryId" = ?', [id]);
+    await db.run('UPDATE links SET "categoryid" = NULL WHERE "categoryid" = ?', [id]);
   }
   
   const result = await db.run('DELETE FROM categories WHERE id = ?', [id]);
