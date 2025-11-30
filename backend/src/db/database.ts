@@ -22,9 +22,15 @@ export function getDatabase(): Database {
   const dbPath = process.env.DB_PATH || './data/easylink.db';
   const dbDir = path.dirname(dbPath);
 
+  // Log para debug
+  console.log('DB_PATH configurado:', dbPath);
+  console.log('Diretório do banco:', dbDir);
+  console.log('Diretório existe?', fs.existsSync(dbDir));
+
   // Criar diretório se não existir
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
+    console.log('Diretório criado:', dbDir);
   }
 
   const db = new sqlite3Verbose.Database(dbPath, (err) => {
@@ -32,7 +38,8 @@ export function getDatabase(): Database {
       console.error('Erro ao conectar ao banco de dados:', err);
       throw err;
     }
-    console.log('Conectado ao banco de dados SQLite');
+    console.log('Conectado ao banco de dados SQLite em:', dbPath);
+    console.log('Arquivo existe?', fs.existsSync(dbPath));
   });
 
   // Habilitar foreign keys
