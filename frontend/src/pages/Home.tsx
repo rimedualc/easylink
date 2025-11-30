@@ -11,6 +11,7 @@ import { LinkEditor } from './LinkEditor';
 import { useLinks, useCategories } from '../hooks/useApi';
 import { useToasts } from '../hooks/useToasts';
 import { linksApi, categoriesApi, exportApi } from '../services/api';
+import { linksCache, categoriesCache } from '../utils/cache';
 import type { Link, LinkFilters, Category } from '../types';
 
 export function Home() {
@@ -19,8 +20,8 @@ export function Home() {
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<Link | null>(null);
   const { toasts, addToast, removeToast } = useToasts();
-  const { links, loading, refetch } = useLinks(filters);
-  const { categories, refetch: refetchCategories } = useCategories();
+  const { links, loading, refetch, setLinks } = useLinks(filters);
+  const { categories, refetch: refetchCategories, setCategories } = useCategories();
 
   const handleOpen = (link: Link) => {
     // Link já é aberto no LinkCard
@@ -39,9 +40,18 @@ export function Home() {
     if (!deleteConfirm) return;
 
     try {
+      // Atualizar cache local imediatamente
+      const cached = linksCache.get();
+      const updated = cached.filter(l => l.id !== deleteConfirm.id);
+      linksCache.set(updated);
+      setLinks(updated);
+      
+      // Sincronizar com backend em background
       await linksApi.delete(deleteConfirm.id);
       addToast('Link excluído com sucesso!');
       setDeleteConfirm(null);
+      
+      // Atualizar do servidor em background
       setTimeout(() => {
         refetch();
       }, 100);
@@ -57,22 +67,52 @@ export function Home() {
 
   const handleToggleFavorite = async (link: Link) => {
     try {
+      // Atualizar cache local imediatamente
+      const cached = linksCache.get();
+      const updated = cached.map(l => 
+        l.id === link.id ? { ...l, favorite: !l.favorite } : l
+      );
+      linksCache.set(updated);
+      setLinks(updated);
+      
+      // Sincronizar com backend em background
       await linksApi.toggleFavorite(link.id, !link.favorite);
       addToast(
         link.favorite ? 'Removido dos favoritos' : 'Adicionado aos favoritos'
       );
-      refetch();
+      
+      // Atualizar do servidor em background
+      setTimeout(() => {
+        refetch();
+      }, 100);
     } catch (error: any) {
       addToast(error.message || 'Erro ao atualizar favorito', 'error');
+      // Reverter mudança no cache em caso de erro
+      refetch();
     }
   };
 
   const handleCreateCategory = async (name: string): Promise<Category> => {
     try {
+      // Atualizar cache local imediatamente
+      const cached = categoriesCache.get();
+      const tempCategory: Category = {
+        id: Date.now(),
+        name,
+        createdAt: new Date().toISOString(),
+      };
+      const updated = [...cached, tempCategory];
+      categoriesCache.set(updated);
+      setCategories(updated);
+      
+      // Sincronizar com backend em background
       const newCategory = await categoriesApi.create(name);
-      setTimeout(async () => {
-        await refetchCategories();
-      }, 100);
+      
+      // Atualizar com categoria real do servidor
+      const finalUpdated = cached.map(c => c.id === tempCategory.id ? newCategory : c);
+      categoriesCache.set(finalUpdated);
+      setCategories(finalUpdated);
+      
       addToast('Categoria criada com sucesso!');
       return newCategory;
     } catch (error: any) {
@@ -103,9 +143,22 @@ export function Home() {
 
   const handleUpdateCategory = async (id: number, name: string) => {
     try {
+      // Atualizar cache local imediatamente
+      const cached = categoriesCache.get();
+      const updated = cached.map(c => 
+        c.id === id ? { ...c, name } : c
+      );
+      categoriesCache.set(updated);
+      setCategories(updated);
+      
+      // Sincronizar com backend em background
       await categoriesApi.update(id, name);
       addToast('Categoria atualizada com sucesso!');
-      refetchCategories();
+      
+      // Atualizar do servidor em background
+      setTimeout(() => {
+        refetchCategories();
+      }, 100);
     } catch (error: any) {
       addToast(error.message || 'Erro ao atualizar categoria', 'error');
     }
@@ -113,8 +166,34 @@ export function Home() {
 
   const handleDeleteCategory = async (id: number, reassignTo?: number) => {
     try {
+      // Atualizar cache local imediatamente
+      const cached = categoriesCache.get();
+      const updated = cached.filter(c => c.id !== id);
+      categoriesCache.set(updated);
+      setCategories(updated);
+      
+      // Atualizar links se necessário
+      if (reassignTo) {
+        const linksCached = linksCache.get();
+        const linksUpdated = linksCached.map(l => 
+          l.categoryId === id ? { ...l, categoryId: reassignTo } : l
+        );
+        linksCache.set(linksUpdated);
+        setLinks(linksUpdated);
+      } else {
+        const linksCached = linksCache.get();
+        const linksUpdated = linksCached.map(l => 
+          l.categoryId === id ? { ...l, categoryId: null } : l
+        );
+        linksCache.set(linksUpdated);
+        setLinks(linksUpdated);
+      }
+      
+      // Sincronizar com backend em background
       await categoriesApi.delete(id, reassignTo);
       addToast('Categoria excluída com sucesso!');
+      
+      // Atualizar do servidor em background
       setTimeout(() => {
         refetchCategories();
         refetch();
@@ -185,14 +264,50 @@ export function Home() {
   const handleSaveLink = async (data: Partial<Link>) => {
     try {
       if (editingLink) {
+        // Atualizar cache local imediatamente
+        const cached = linksCache.get();
+        const updated = cached.map(l => 
+          l.id === editingLink.id 
+            ? { ...l, ...data, updatedAt: new Date().toISOString() }
+            : l
+        );
+        linksCache.set(updated);
+        setLinks(updated);
+        
+        // Sincronizar com backend em background
         await linksApi.update(editingLink.id, data);
         addToast('Link atualizado com sucesso!');
       } else {
-        await linksApi.create(data as Omit<Link, 'id' | 'createdAt' | 'updatedAt'>);
+        // Criar link temporário no cache
+        const tempLink: Link = {
+          id: Date.now(), // ID temporário
+          name: data.name || '',
+          url: data.url || '',
+          categoryId: data.categoryId || null,
+          favorite: data.favorite || false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        
+        const cached = linksCache.get();
+        const updated = [...cached, tempLink];
+        linksCache.set(updated);
+        setLinks(updated);
+        
+        // Sincronizar com backend em background
+        const newLink = await linksApi.create(data as Omit<Link, 'id' | 'createdAt' | 'updatedAt'>);
+        
+        // Atualizar com o link real do servidor
+        const finalUpdated = cached.map(l => l.id === tempLink.id ? newLink : l);
+        linksCache.set(finalUpdated);
+        setLinks(finalUpdated);
+        
         addToast('Link criado com sucesso!');
       }
       setEditingLink(null);
       setIsCreating(false);
+      
+      // Atualizar do servidor em background
       setTimeout(() => {
         refetch();
       }, 100);

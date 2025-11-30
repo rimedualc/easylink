@@ -85,3 +85,4 @@ Se ainda não persistir, me envie:
 - Screenshot da variável DB_PATH
 - Logs do servidor (especialmente as linhas sobre DB_PATH)
 
+

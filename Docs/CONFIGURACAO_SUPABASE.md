@@ -74,3 +74,4 @@ Após criar as tabelas no Supabase, configure no Render:
 3. Teste criando um link
 4. Os dados agora devem persistir! 🎉
 
+
