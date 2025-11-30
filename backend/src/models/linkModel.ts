@@ -34,9 +34,9 @@ export async function getAllLinks(filters: LinkFilters = {}): Promise<Link[]> {
   let query = `
     SELECT 
       l.*,
-      c.name as categoryName
+      c.name as "categoryName"
     FROM links l
-    LEFT JOIN categories c ON l.categoryId = c.id
+    LEFT JOIN categories c ON l."categoryId" = c.id
     WHERE 1=1
   `;
   const params: any[] = [];
@@ -48,13 +48,13 @@ export async function getAllLinks(filters: LinkFilters = {}): Promise<Link[]> {
   }
 
   if (filters.categoryId !== undefined) {
-    query += ` AND l.categoryId = ?`;
+    query += ` AND l."categoryId" = ?`;
     params.push(filters.categoryId);
   }
 
   if (filters.favorite !== undefined) {
     query += ` AND l.favorite = ?`;
-    params.push(filters.favorite ? 1 : 0);
+    params.push(filters.favorite);
   }
 
   // Ordenação
@@ -62,11 +62,11 @@ export async function getAllLinks(filters: LinkFilters = {}): Promise<Link[]> {
   const sortOrder = filters.order || 'desc';
   
   if (sortField === 'favorite') {
-    query += ` ORDER BY l.favorite DESC, l.createdAt DESC`;
+    query += ` ORDER BY l.favorite DESC, l."createdAt" DESC`;
   } else if (sortField === 'name') {
     query += ` ORDER BY l.name ${sortOrder.toUpperCase()}`;
   } else {
-    query += ` ORDER BY l.createdAt ${sortOrder.toUpperCase()}`;
+    query += ` ORDER BY l."createdAt" ${sortOrder.toUpperCase()}`;
   }
 
   // Paginação
@@ -80,16 +80,16 @@ export async function getAllLinks(filters: LinkFilters = {}): Promise<Link[]> {
   
   return rows.map(row => ({
     ...row,
-    favorite: Boolean(row.favorite),
+    favorite: row.favorite || false,
   }));
 }
 
 export async function getLinkById(id: number): Promise<Link | null> {
   const db = getDatabase();
   const row = await db.get<Link>(
-    `SELECT l.*, c.name as categoryName 
+    `SELECT l.*, c.name as "categoryName" 
      FROM links l 
-     LEFT JOIN categories c ON l.categoryId = c.id 
+     LEFT JOIN categories c ON l."categoryId" = c.id 
      WHERE l.id = ?`,
     [id]
   );
@@ -98,7 +98,7 @@ export async function getLinkById(id: number): Promise<Link | null> {
 
   return {
     ...row,
-    favorite: Boolean(row.favorite),
+    favorite: row.favorite || false,
   };
 }
 
@@ -107,13 +107,13 @@ export async function createLink(data: Omit<Link, 'id' | 'createdAt' | 'updatedA
   
   try {
     const result = await db.run(
-      `INSERT INTO links (name, url, categoryId, favorite)
+      `INSERT INTO links (name, url, "categoryId", favorite)
        VALUES (?, ?, ?, ?)`,
       [
         data.name,
         data.url,
         data.categoryId !== undefined && data.categoryId !== null ? data.categoryId : null,
-        data.favorite ? 1 : 0,
+        data.favorite || false,
       ]
     );
 
@@ -151,15 +151,15 @@ export async function updateLink(id: number, data: Partial<Omit<Link, 'id' | 'cr
     params.push(data.url);
   }
   if (data.categoryId !== undefined) {
-    updates.push('categoryId = ?');
+    updates.push('"categoryId" = ?');
     params.push(data.categoryId);
   }
   if (data.favorite !== undefined) {
     updates.push('favorite = ?');
-    params.push(data.favorite ? 1 : 0);
+    params.push(data.favorite);
   }
 
-  updates.push('updatedAt = CURRENT_TIMESTAMP');
+  updates.push('"updatedAt" = CURRENT_TIMESTAMP');
   params.push(id);
 
   await db.run(
@@ -192,9 +192,9 @@ export async function deleteLink(id: number): Promise<void> {
 export async function getAllCategories(): Promise<Category[]> {
   const db = getDatabase();
   const rows = await db.all<Category & { linkCount: number }>(
-    `SELECT c.*, COUNT(l.id) as linkCount
+    `SELECT c.*, COUNT(l.id) as "linkCount"
      FROM categories c
-     LEFT JOIN links l ON c.id = l.categoryId
+     LEFT JOIN links l ON c.id = l."categoryId"
      GROUP BY c.id
      ORDER BY c.name`
   );
@@ -221,7 +221,7 @@ export async function createCategory(name: string): Promise<Category> {
   if (existing) {
     // Se já existe, retornar a categoria existente
     const linkCount = await db.get<{ count: number }>(
-      'SELECT COUNT(*) as count FROM links WHERE categoryId = ?',
+      'SELECT COUNT(*) as count FROM links WHERE "categoryId" = ?',
       [existing.id]
     );
     return { ...existing, linkCount: linkCount?.count || 0 };
@@ -247,7 +247,7 @@ export async function createCategory(name: string): Promise<Category> {
       const existingAfter = await db.get<Category>('SELECT * FROM categories WHERE name = ?', [name]);
       if (existingAfter) {
         const linkCount = await db.get<{ count: number }>(
-          'SELECT COUNT(*) as count FROM links WHERE categoryId = ?',
+          'SELECT COUNT(*) as count FROM links WHERE "categoryId" = ?',
           [existingAfter.id]
         );
         return { ...existingAfter, linkCount: linkCount?.count || 0 };
@@ -273,7 +273,7 @@ export async function updateCategory(id: number, name: string): Promise<Category
     }
     
     const linkCount = await db.get<{ count: number }>(
-      'SELECT COUNT(*) as count FROM links WHERE categoryId = ?',
+      'SELECT COUNT(*) as count FROM links WHERE "categoryId" = ?',
       [id]
     );
     
@@ -290,9 +290,9 @@ export async function deleteCategory(id: number, reassignTo?: number): Promise<v
   const db = getDatabase();
   
   if (reassignTo) {
-    await db.run('UPDATE links SET categoryId = ? WHERE categoryId = ?', [reassignTo, id]);
+    await db.run('UPDATE links SET "categoryId" = ? WHERE "categoryId" = ?', [reassignTo, id]);
   } else {
-    await db.run('UPDATE links SET categoryId = NULL WHERE categoryId = ?', [id]);
+    await db.run('UPDATE links SET "categoryId" = NULL WHERE "categoryId" = ?', [id]);
   }
   
   const result = await db.run('DELETE FROM categories WHERE id = ?', [id]);

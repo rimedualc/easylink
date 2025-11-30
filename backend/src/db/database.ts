@@ -1,9 +1,4 @@
-import sqlite3 from 'sqlite3';
-import { promisify } from 'util';
-import path from 'path';
-import fs from 'fs';
-
-const sqlite3Verbose = sqlite3.verbose();
+import { Pool, QueryResult } from 'pg';
 
 export interface Database {
   run: (sql: string, params?: any[]) => Promise<{ lastID: number; changes: number }>;
@@ -12,94 +7,106 @@ export interface Database {
   close: () => Promise<void>;
 }
 
-let dbInstance: Database | null = null;
+let pool: Pool | null = null;
 
-export function getDatabase(): Database {
-  if (dbInstance) {
-    return dbInstance;
+function getPool(): Pool {
+  if (pool) {
+    return pool;
   }
 
-  const dbPath = process.env.DB_PATH || './data/easylink.db';
-  const dbDir = path.dirname(dbPath);
-
-  // Log para debug
-  console.log('DB_PATH configurado:', dbPath);
-  console.log('Diretório do banco:', dbDir);
-  console.log('Diretório existe?', fs.existsSync(dbDir));
-
-  // Criar diretório se não existir
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-    console.log('Diretório criado:', dbDir);
+  const connectionString = process.env.DATABASE_URL;
+  
+  if (!connectionString) {
+    throw new Error('DATABASE_URL não configurada. Configure a variável de ambiente DATABASE_URL com a connection string do Supabase.');
   }
 
-  const db = new sqlite3Verbose.Database(dbPath, (err) => {
-    if (err) {
-      console.error('Erro ao conectar ao banco de dados:', err);
-      throw err;
-    }
-    console.log('Conectado ao banco de dados SQLite em:', dbPath);
-    console.log('Arquivo existe?', fs.existsSync(dbPath));
+  console.log('Conectando ao banco de dados PostgreSQL (Supabase)...');
+
+  pool = new Pool({
+    connectionString,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   });
 
-  // Habilitar foreign keys
-  db.run('PRAGMA foreign_keys = ON');
+  pool.on('error', (err) => {
+    console.error('Erro inesperado no pool do PostgreSQL:', err);
+  });
 
-  // Promisificar métodos
-  dbInstance = {
-    run: (sql: string, params?: any[]): Promise<{ lastID: number; changes: number }> => {
-      return new Promise((resolve, reject) => {
-        db.run(sql, params || [], function(err) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve({
-              lastID: this.lastID || 0,
-              changes: this.changes || 0,
-            });
-          }
-        });
-      });
+  return pool;
+}
+
+// Converter queries SQLite (?) para PostgreSQL ($1, $2, ...)
+function convertQuery(sql: string, params?: any[]): { sql: string; params: any[] } {
+  if (!params || params.length === 0) {
+    return { sql, params: [] };
+  }
+
+  let paramIndex = 1;
+  const convertedParams: any[] = [];
+  const convertedSql = sql.replace(/\?/g, () => {
+    convertedParams.push(params[paramIndex - 1]);
+    return `$${paramIndex++}`;
+  });
+
+  return { sql: convertedSql, params: convertedParams };
+}
+
+export function getDatabase(): Database {
+  const pool = getPool();
+
+  return {
+    async run(sql: string, params?: any[]): Promise<{ lastID: number; changes: number }> {
+      const { sql: convertedSql, params: convertedParams } = convertQuery(sql, params);
+      
+      // Para INSERT, retornar o id inserido
+      if (sql.trim().toUpperCase().startsWith('INSERT')) {
+        const result = await pool.query(`${convertedSql} RETURNING id`, convertedParams);
+        return {
+          lastID: result.rows[0]?.id || 0,
+          changes: result.rowCount || 0,
+        };
+      }
+      
+      // Para UPDATE/DELETE, retornar número de linhas afetadas
+      const result = await pool.query(convertedSql, convertedParams);
+      return {
+        lastID: 0,
+        changes: result.rowCount || 0,
+      };
     },
-    get: promisify(db.get.bind(db)) as any,
-    all: promisify(db.all.bind(db)) as any,
-    close: promisify(db.close.bind(db)) as any,
-  };
 
-  return dbInstance;
+    async get<T = any>(sql: string, params?: any[]): Promise<T | undefined> {
+      const { sql: convertedSql, params: convertedParams } = convertQuery(sql, params);
+      const result = await pool.query(convertedSql, convertedParams);
+      return result.rows[0] as T | undefined;
+    },
+
+    async all<T = any>(sql: string, params?: any[]): Promise<T[]> {
+      const { sql: convertedSql, params: convertedParams } = convertQuery(sql, params);
+      const result = await pool.query(convertedSql, convertedParams);
+      return result.rows as T[];
+    },
+
+    async close(): Promise<void> {
+      if (pool) {
+        await pool.end();
+        pool = null;
+      }
+    },
+  };
 }
 
 export async function initializeDatabase(): Promise<void> {
   const db = getDatabase();
-  const fs = require('fs');
-  const path = require('path');
-
-  // Executar migrations
-  // Em produção (compilado), __dirname aponta para dist/db/, então voltamos para src/db/migrations
-  // Em desenvolvimento, __dirname já aponta para src/db/
-  const migrationsDir = process.env.NODE_ENV === 'production' 
-    ? path.resolve(__dirname, '../../src/db/migrations')
-    : path.join(__dirname, 'migrations');
   
-  const migrationFiles = fs.readdirSync(migrationsDir).sort();
-
-  for (const file of migrationFiles) {
-    if (file.endsWith('.sql')) {
-      const migrationPath = path.join(migrationsDir, file);
-      const sql = fs.readFileSync(migrationPath, 'utf-8');
-      
-      // Executar cada statement separadamente
-      const statements = sql.split(';').filter((s: string) => s.trim().length > 0);
-      
-      for (const statement of statements) {
-        try {
-          await db.run(statement);
-          console.log(`Migration executada: ${file}`);
-        } catch (error) {
-          console.error(`Erro ao executar migration ${file}:`, error);
-        }
-      }
-    }
+  // Verificar conexão
+  try {
+    await db.get('SELECT 1');
+    console.log('✅ Conectado ao banco de dados PostgreSQL (Supabase)');
+  } catch (error) {
+    console.error('❌ Erro ao conectar ao banco de dados:', error);
+    throw error;
   }
+  
+  // As tabelas já foram criadas no Supabase, então não precisamos executar migrations
+  console.log('✅ Banco de dados inicializado (tabelas já existem no Supabase)');
 }
-

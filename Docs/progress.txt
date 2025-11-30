@@ -237,6 +237,27 @@ DOCUMENTACAO ADICIONAL
   * Checklist de implementacao
   * Observacoes importantes sobre estrutura generica
 
+CONFIGURACAO PARA DEPLOY
+------------------------
+- Repositorio Git inicializado e conectado ao GitHub (rimedualc/easylink)
+- Arquivo vercel.json criado para configuracao do frontend no Vercel
+- Arquivo render.yaml criado para configuracao do backend no Render
+- API do frontend ajustada para usar variavel de ambiente VITE_API_URL em producao
+- README.md criado com instrucoes gerais do projeto
+- Docs/DEPLOY.md criado com guia passo a passo de deploy
+- Docs/VARIAVEIS_AMBIENTE.md criado com todas as variaveis necessarias
+
+VARIAVEIS DE AMBIENTE NECESSARIAS
+----------------------------------
+VERCEL (Frontend):
+- VITE_API_URL: https://seu-backend-no-render.onrender.com/api
+  (Substituir pela URL real do backend no Render)
+
+RENDER (Backend):
+- NODE_ENV: production
+- PORT: 10000 (ou deixar Render definir automaticamente)
+- DB_PATH: /opt/render/project/src/backend/data/easylink.db
+
 PRÓXIMOS PASSOS (se necessario)
 --------------------------------
 - Testes unitarios (opcional)
