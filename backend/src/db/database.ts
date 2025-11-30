@@ -22,15 +22,16 @@ function getPool(): Pool {
 
   console.log('Conectando ao banco de dados PostgreSQL (Supabase)...');
 
-  pool = new Pool({
+  const newPool = new Pool({
     connectionString,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   });
 
-  pool.on('error', (err) => {
+  newPool.on('error', (err) => {
     console.error('Erro inesperado no pool do PostgreSQL:', err);
   });
 
+  pool = newPool;
   return pool;
 }
 
