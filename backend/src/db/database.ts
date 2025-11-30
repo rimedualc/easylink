@@ -52,7 +52,7 @@ function convertQuery(sql: string, params?: any[]): { sql: string; params: any[]
 }
 
 export function getDatabase(): Database {
-  const pool = getPool();
+  const dbPool = getPool();
 
   return {
     async run(sql: string, params?: any[]): Promise<{ lastID: number; changes: number }> {
@@ -60,7 +60,7 @@ export function getDatabase(): Database {
       
       // Para INSERT, retornar o id inserido
       if (sql.trim().toUpperCase().startsWith('INSERT')) {
-        const result = await pool.query(`${convertedSql} RETURNING id`, convertedParams);
+        const result = await dbPool.query(`${convertedSql} RETURNING id`, convertedParams);
         return {
           lastID: result.rows[0]?.id || 0,
           changes: result.rowCount || 0,
@@ -68,7 +68,7 @@ export function getDatabase(): Database {
       }
       
       // Para UPDATE/DELETE, retornar número de linhas afetadas
-      const result = await pool.query(convertedSql, convertedParams);
+      const result = await dbPool.query(convertedSql, convertedParams);
       return {
         lastID: 0,
         changes: result.rowCount || 0,
@@ -77,13 +77,13 @@ export function getDatabase(): Database {
 
     async get<T = any>(sql: string, params?: any[]): Promise<T | undefined> {
       const { sql: convertedSql, params: convertedParams } = convertQuery(sql, params);
-      const result = await pool.query(convertedSql, convertedParams);
+      const result = await dbPool.query(convertedSql, convertedParams);
       return result.rows[0] as T | undefined;
     },
 
     async all<T = any>(sql: string, params?: any[]): Promise<T[]> {
       const { sql: convertedSql, params: convertedParams } = convertQuery(sql, params);
-      const result = await pool.query(convertedSql, convertedParams);
+      const result = await dbPool.query(convertedSql, convertedParams);
       return result.rows as T[];
     },
 
