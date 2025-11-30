@@ -30,7 +30,6 @@ export function LinkEditor({ link, categories, onSave, onCancel, onCreateCategor
     handleSubmit,
     formState: { errors, isSubmitting },
     setValue,
-    watch,
   } = useForm<LinkFormData>({
     resolver: zodResolver(linkSchema),
     defaultValues: {

@@ -11,8 +11,7 @@ import { LinkEditor } from './LinkEditor';
 import { useLinks, useCategories } from '../hooks/useApi';
 import { useToasts } from '../hooks/useToasts';
 import { linksApi, categoriesApi, exportApi } from '../services/api';
-import { copyToClipboard } from '../utils/clipboard';
-import type { Link, LinkFilters } from '../types';
+import type { Link, LinkFilters, Category } from '../types';
 
 export function Home() {
   const [filters, setFilters] = useState<LinkFilters>({});
@@ -68,13 +67,14 @@ export function Home() {
     }
   };
 
-  const handleCreateCategory = async (name: string): Promise<void> => {
+  const handleCreateCategory = async (name: string): Promise<Category> => {
     try {
-      await categoriesApi.create(name);
+      const newCategory = await categoriesApi.create(name);
       setTimeout(async () => {
         await refetchCategories();
       }, 100);
       addToast('Categoria criada com sucesso!');
+      return newCategory;
     } catch (error: any) {
       console.error('Erro ao criar categoria:', error);
       setTimeout(async () => {
@@ -208,7 +208,9 @@ export function Home() {
         onImport={handleImport}
         onClear={handleClear}
         categories={categories}
-        onCreateCategory={handleCreateCategory}
+        onCreateCategory={async (name: string) => {
+          await handleCreateCategory(name);
+        }}
         onUpdateCategory={handleUpdateCategory}
         onDeleteCategory={handleDeleteCategory}
       />
