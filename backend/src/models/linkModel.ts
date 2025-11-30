@@ -209,7 +209,8 @@ export async function getAllCategories(): Promise<Category[]> {
 
 export async function getCategoryById(id: number): Promise<Category | null> {
   const db = getDatabase();
-  return await db.get<Category>('SELECT * FROM categories WHERE id = ?', [id]);
+  const result = await db.get<Category>('SELECT * FROM categories WHERE id = ?', [id]);
+  return result || null;
 }
 
 export async function createCategory(name: string): Promise<Category> {
